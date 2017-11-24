@@ -1,0 +1,29 @@
+#include <esp.h>
+//#include <stdint.h>
+
+void flash_info (void){
+    uint32_t realSize = ESP.getFlashChipRealSize();
+    uint32_t ideSize = ESP.getFlashChipSize();
+    FlashMode_t ideMode = ESP.getFlashChipMode();
+
+    Serial.printf("Flash real id:   %08X\n", ESP.getFlashChipId());
+    Serial.printf("Flash real size: %u\n\n", realSize);
+    Serial.printf("Flash ide  size: %u\n", ideSize);
+    Serial.printf("Flash ide speed: %u\n", ESP.getFlashChipSpeed());
+    Serial.printf("Flash ide mode:  %s\n", (ideMode == FM_QIO ? "QIO" : ideMode == FM_QOUT ? "QOUT" : ideMode == FM_DIO ? "DIO" : ideMode == FM_DOUT ? "DOUT" : "UNKNOWN"));
+
+    if(ideSize != realSize) {
+        Serial.println("Flash Chip configuration wrong!\n");
+    } else {
+        Serial.println("Flash Chip configuration ok.\n");
+    }
+  /*
+  Flash real id:   001640E0
+  Flash real size: 4194304
+
+  Flash ide  size: 4194304
+  Flash ide speed: 40000000
+  Flash ide mode:  QIO
+  Flash Chip configuration ok.
+  */
+}
