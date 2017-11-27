@@ -46,7 +46,7 @@ WiFiUDP ntpUDP;
 // update interval (in milliseconds, can be changed using setUpdateInterval() ).
 //NTPClient timeClient(ntpUDP, "ru.pool.ntp.org", 3600*3, 1000*60*10);
 NTPClient timeClient(ntpUDP, "ru.pool.ntp.org", 3600*3, 1000*60);
-
+//NTPClient timeClient(ntpUDP, ntpServerName1[], 3600*3, 1000*60);
 
 bool loop_run = false;
 unsigned long time_new=0;
