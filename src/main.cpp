@@ -85,6 +85,10 @@ void setup() {
   
   wifi_scan ();
   Serial.print("Connecting to "); // Connect to WiFi network
+  #ifndef PASS_H
+    const char* ssid = "***";
+    const char* password = "***";
+  #endif
   Serial.println(ssid);
   #ifndef PASS_H
     const char* ssid = "***";
