@@ -86,6 +86,10 @@ void setup() {
   wifi_scan ();
   Serial.print("Connecting to "); // Connect to WiFi network
   Serial.println(ssid);
+  #ifndef PASS_H
+    const char* ssid = "***";
+    const char* password = "***";
+  #endif
   WiFi.begin(ssid, password);
   //WiFi.begin(ssid1, password1);
   
@@ -125,10 +129,8 @@ void setup() {
   int httpCode;
   String payload;
   //String url = "http://"+Config.serverIP+"/objects/?object="+Config.name+"&op=set&p="+Config.property+"&v=";
-  //String url = "https://hotspot.trimble.com/authentication.php?useGuest=1&username=guest&password=wigxindk";
   //String url = "http://ya.ru";
   String url = "http://ya.ru/favicon.ico";
-  //String url = "http://sms.ru/sms/send?api_id=e821dbe4-c6e5-1f34-1183-d510d31b8a84&to=79104345491&text=hello+world";
   //String url = "http://sms.ru";
   http.begin(url);
   httpCode = http.GET();
