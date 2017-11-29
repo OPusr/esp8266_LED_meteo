@@ -179,7 +179,10 @@ void loop() {
     if (time_cnt==t_n){
       time_cnt=0;
       uptime++;
-      Serial.println(uptime);
+      //Serial.println(uptime);
+      if (uptime%5==0){
+        Serial.println(uptime);
+      }
     }
     else{
       time_cnt++;
