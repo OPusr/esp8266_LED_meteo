@@ -32,41 +32,48 @@ http://arduino.ru/Reference/Serial/Println
 #define t_500m  40000000   //41660000 ?
 #define t_1s  80000000
 
+#define t_n 5 //main program loops per second
+#define t_  t_1s/t_n
+
+short int time_cnt=0;
+unsigned long uptime=0;
+unsigned long uptime_old=0;
 
 // NTP Servers:
 static const char ntpServerName[] = "ru.pool.ntp.org";
 //static const char ntpServerName[] = "time.nist.gov";
 const int timeZone = 3;     // Moscow
 
-
-
 WiFiUDP ntpUDP;
-// You can specify the time server pool and the offset (in seconds, can be
-// changed later with setTimeOffset() ). Additionaly you can specify the
-// update interval (in milliseconds, can be changed using setUpdateInterval() ).
-//NTPClient timeClient(ntpUDP, "ru.pool.ntp.org", 3600*timeZone, 1000*60*10);
-NTPClient timeClient(ntpUDP, "ru.pool.ntp.org", 3600*timeZone, 1000*60);
-//NTPClient timeClient(ntpUDP, ntpServerName1[], 3600*timeZone, 1000*60);
 
-bool loop_run = false;
-unsigned long time_new=0;
-unsigned long time_old=0;
-
-void LEDblink(void){
-  timer0_write(ESP.getCycleCount() + t_100m);
-  loop_run=true;
-  //digitalWrite(LED_PIN, digitalRead(LED_PIN) ^ 1);
-  //digitalWrite(LED_PIN, !digitalRead(LED_PIN));
-  time_old=time_new;
-  //time_new=millis();
-  time_new=micros();
-}
+//NTPClient timeClient(ntpUDP, ntpServerName, 3600*timeZone, 1000*60);
+NTPClient timeClient(ntpUDP, ntpServerName1, 3600*timeZone, 1000*60);
+//setTimeOffset(3600*timeZone); //in seconds
+//setUpdateInterval(1000*60); //in milliseconds
 
 bool ledState;
 void blink() {
   digitalWrite(LED_PIN, ledState);
   ledState = !ledState;
 }
+
+bool loop_run = false;
+unsigned long time_new=0;
+unsigned long time_old=0;
+
+void timer_f(void){
+  timer0_write(ESP.getCycleCount() + t_);
+  loop_run=true;
+  time_old=time_new;
+  //time_new=millis();
+  time_new=micros();
+
+  blink();
+
+  //digitalWrite(LED_PIN, digitalRead(LED_PIN) ^ 1);
+  //digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+}
+
 
 /*time_t getNtpTime()
 {
@@ -75,7 +82,7 @@ void blink() {
 //////////////////////////////////////////////////////////////////
 void setup() {
   Serial.begin(115200);
-  delay(10);
+  delay(10);  //10 ms
   
   flash_info ();
   
@@ -89,13 +96,10 @@ void setup() {
     const char* ssid = "***";
     const char* password = "***";
   #endif
-  Serial.println(ssid);
-  #ifndef PASS_H
-    const char* ssid = "***";
-    const char* password = "***";
-  #endif
-  WiFi.begin(ssid, password);
-  //WiFi.begin(ssid1, password1);
+  //Serial.println(ssid);
+  Serial.println(ssid1);
+  //WiFi.begin(ssid, password);
+  WiFi.begin(ssid1, password1);
   
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -105,12 +109,12 @@ void setup() {
 
   timeClient.begin();
 
+///*
   noInterrupts();
   timer0_isr_init();
-  timer0_attachInterrupt(LEDblink);
-  //next=ESP.getCycleCount()+1000;
-  timer0_write(ESP.getCycleCount() + t_100m);
-  interrupts();
+  timer0_attachInterrupt(timer_f);
+  timer0_write(ESP.getCycleCount() + t_);
+  interrupts();//*/
 
   /*  // Start the server
   WiFiServer server(80); //Create an instance of the server, specify the port to listen on as an argument
@@ -118,7 +122,6 @@ void setup() {
   Serial.println("Server started");*/
 
   WiFiClient client;
-  //if(!client.connect("google.com", 80))
   if(!client.connect("ya.ru", 80))
   {
     Serial.println("\r\n...... Internet Connection test failed...Retrying....\r\n");
@@ -170,30 +173,44 @@ void loop() {
     //Serial.println(micros());
     //Serial.println(millis());
     //Serial.println(ESP.getCycleCount()); 
+
+    //Serial.println("uptime");
+    //Serial.println(uptime);
+    if (time_cnt==t_n){
+      time_cnt=0;
+      uptime++;
+      Serial.println(uptime);
+    }
+    else{
+      time_cnt++;
+    }
+
+    if (uptime%5==0){
+      Serial.println(uptime);
+    }
+
   }
 
-  timeClient.update();
+  timeClient.update();    //get time from NTP server
   //timeClient.forceUpdate();  
-  Serial.println(timeClient.getFormattedTime());
-  Serial.println(timeClient.getEpochTime());
-  /*Serial.println(timeClient.getDay());
+  //Serial.println(timeClient.getFormattedTime());
+  //Serial.println(timeClient.getEpochTime());
+  /*
+  Serial.println(timeClient.getDay());
   Serial.println(timeClient.getHours());
   Serial.println(timeClient.getMinutes());
-  Serial.println(timeClient.getSeconds());*/
+  Serial.println(timeClient.getSeconds());//*/
 
-  /*digitalWrite(LED_PIN, LOW);
-  delay(500);
-  digitalWrite(LED_PIN, HIGH);
-  delay(500);*/
-
-  analogWrite(LED_PIN, PWMRANGE-0);
-  delay(2500);
-  analogWrite(LED_PIN, PWMRANGE-23);
-  delay(2500);
+  //digitalWrite(LED_PIN, LOW);
+  //analogWrite(LED_PIN, PWMRANGE-0);
+  //delay(2500);
+  //digitalWrite(LED_PIN, HIGH);
+  //analogWrite(LED_PIN, PWMRANGE-23);
+  //delay(2500);
 }
 
 
-
+//////////////////////////////////////////////////////////////////
 /* 
   // Check if a client has connected
   WiFiClient client = server.available();
