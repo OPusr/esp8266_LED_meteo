@@ -14,7 +14,8 @@ http://arduino.ru/Reference/Serial/Println
 #include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <math.h>
-//#include <TimeLib.h>
+
+#include <TimeLib.h>
 
 #include "flash_tools.h"
 #include "wifi_tools.h"
@@ -36,6 +37,7 @@ http://arduino.ru/Reference/Serial/Println
 #define t_  t_1s/t_n
 
 short int time_cnt=0;
+//unsigned long uptime=4294967100;
 unsigned long uptime=0;
 unsigned long uptime_old=0;
 
@@ -75,10 +77,16 @@ void timer_f(void){
 }
 
 
-/*time_t getNtpTime()
-{
-  return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
-}*/
+//*
+WiFiUDP Udp;
+unsigned int localPort = 1337;  // local port to listen for UDP packets
+
+time_t getNtpTime();
+void digitalClockDisplay();
+void printDigits(int digits);
+void sendNTPpacket(IPAddress &address);
+time_t prevDisplay = 0; // when the digital clock was displayed
+//*/
 //////////////////////////////////////////////////////////////////
 void setup() {
   Serial.begin(115200);
@@ -108,6 +116,13 @@ void setup() {
   wifi_info();
 
   timeClient.begin();
+  timeClient.forceUpdate();
+
+  //*
+  setSyncProvider(getNtpTime);
+  setSyncInterval(45);
+
+  //*/
 
 ///*
   noInterrupts();
@@ -177,42 +192,165 @@ void loop() {
     //Serial.println("uptime");
     //Serial.println(uptime);
     if (time_cnt==t_n){
-      time_cnt=0;
-      uptime++;
+      time_cnt=0;      
       //Serial.println(uptime);
       if (uptime%5==0){
-        Serial.println(uptime);
+        //Serial.println(uptime);
+
+        //unsigned long days = (((uptime)  / 86400L) + 4 ) % 7);
+        unsigned long days = uptime  / 86400L;
+        String daysStr = String(days) + " days,";
+        
+        unsigned long hours = (uptime % 86400L) / 3600;
+        String hoursStr = hours < 10 ? "0" + String(hours) : String(hours);
+
+        unsigned long minutes = (uptime % 3600) / 60;
+        String minuteStr = minutes < 10 ? "0" + String(minutes) : String(minutes);
+
+        unsigned long seconds = uptime % 60;
+        String secondStr = seconds < 10 ? "0" + String(seconds) : String(seconds);
+
+        String uptimeStr = daysStr + " " + hoursStr + ":" + minuteStr + ":" + secondStr;
+        Serial.print("Uptime: ");
+        Serial.println(uptimeStr);
       }
+
+      if (uptime%10==0){
+        Serial.print("NTP time: ");
+        //Serial.println(timeClient.getEpochTime());
+        Serial.println(timeClient.getFormattedTime());
+        now();
+      }
+
+      if (uptime%30==0){
+        Serial.println("NTP time update");
+        timeClient.forceUpdate();
+      }
+
+      uptime++;
     }
     else{
       time_cnt++;
-    }
 
-    if (uptime%5==0){
-      Serial.println(uptime);
+      timeClient.update();    //get time from NTP server
+      //timeClient.forceUpdate();  
+      //Serial.println(timeClient.getFormattedTime());
+      //Serial.println(timeClient.getEpochTime());
+      /*
+      Serial.println(timeClient.getDay());
+      Serial.println(timeClient.getHours());
+      Serial.println(timeClient.getMinutes());
+      Serial.println(timeClient.getSeconds());//*/
+
+      //digitalWrite(LED_PIN, LOW);
+      //analogWrite(LED_PIN, PWMRANGE-0);
+      //delay(2500);
+      //digitalWrite(LED_PIN, HIGH);
+      //analogWrite(LED_PIN, PWMRANGE-23);
+      //delay(2500);
     }
 
   }
 
-  timeClient.update();    //get time from NTP server
-  //timeClient.forceUpdate();  
-  //Serial.println(timeClient.getFormattedTime());
-  //Serial.println(timeClient.getEpochTime());
-  /*
-  Serial.println(timeClient.getDay());
-  Serial.println(timeClient.getHours());
-  Serial.println(timeClient.getMinutes());
-  Serial.println(timeClient.getSeconds());//*/
+  if (timeStatus() != timeNotSet) {
+    if (now() != prevDisplay) { //update the display only if time has changed
+      prevDisplay = now();
+      Serial.println("NTP time update 2");
+      digitalClockDisplay();
+      Serial.println(now());
+    }
+  }
 
-  //digitalWrite(LED_PIN, LOW);
-  //analogWrite(LED_PIN, PWMRANGE-0);
-  //delay(2500);
-  //digitalWrite(LED_PIN, HIGH);
-  //analogWrite(LED_PIN, PWMRANGE-23);
-  //delay(2500);
+}
+//////////////////////////////////////////////////////////////////
+
+
+void digitalClockDisplay()
+{
+  // digital clock display of the time
+  Serial.print(hour());
+  printDigits(minute());
+  printDigits(second());
+  Serial.print(" ");
+  Serial.print(day());
+  Serial.print(".");
+  Serial.print(month());
+  Serial.print(".");
+  Serial.print(year());
+  Serial.println();
+}
+
+void printDigits(int digits)
+{
+  // utility for digital clock display: prints preceding colon and leading 0
+  Serial.print(":");
+  if (digits < 10)
+    Serial.print('0');
+  Serial.print(digits);
+}
+
+/*-------- NTP code ----------*/
+
+const int NTP_PACKET_SIZE_ = 48; // NTP time is in the first 48 bytes of message
+byte packetBuffer[NTP_PACKET_SIZE_]; //buffer to hold incoming & outgoing packets
+
+time_t getNtpTime()
+{
+  IPAddress ntpServerIP; // NTP server's ip address
+
+  while (Udp.parsePacket() > 0) ; // discard any previously received packets
+  Serial.println("Transmit NTP Request");
+  // get a random server from the pool
+  WiFi.hostByName(ntpServerName1, ntpServerIP);
+  Serial.print(ntpServerName1);
+  Serial.print(": ");
+  Serial.println(ntpServerIP);
+  sendNTPpacket(ntpServerIP);
+  uint32_t beginWait = millis();
+  while (millis() - beginWait < 1500) {
+    int size = Udp.parsePacket();
+    if (size >= NTP_PACKET_SIZE_) {
+      Serial.println("Receive NTP Response");
+      Udp.read(packetBuffer, NTP_PACKET_SIZE_);  // read packet into the buffer
+      unsigned long secsSince1900;
+      // convert four bytes starting at location 40 to a long integer
+      secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
+      secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
+      secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
+      secsSince1900 |= (unsigned long)packetBuffer[43];
+      return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
+    }
+  }
+  Serial.println("No NTP Response :-(");
+  return 0; // return 0 if unable to get the time
+}
+
+// send an NTP request to the time server at the given address
+void sendNTPpacket(IPAddress &address)
+{
+  // set all bytes in the buffer to 0
+  memset(packetBuffer, 0, NTP_PACKET_SIZE_);
+  // Initialize values needed to form NTP request
+  // (see URL above for details on the packets)
+  packetBuffer[0] = 0b11100011;   // LI, Version, Mode
+  packetBuffer[1] = 0;     // Stratum, or type of clock
+  packetBuffer[2] = 6;     // Polling Interval
+  packetBuffer[3] = 0xEC;  // Peer Clock Precision
+  // 8 bytes of zero for Root Delay & Root Dispersion
+  packetBuffer[12] = 49;
+  packetBuffer[13] = 0x4E;
+  packetBuffer[14] = 49;
+  packetBuffer[15] = 52;
+  // all NTP fields have been given values, now
+  // you can send a packet requesting a timestamp:
+  Udp.beginPacket(address, 123); //NTP requests are to port 123
+  Udp.write(packetBuffer, NTP_PACKET_SIZE_);
+  Udp.endPacket();
 }
 
 
+//////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////
 /* 
   // Check if a client has connected
