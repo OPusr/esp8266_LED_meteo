@@ -41,15 +41,23 @@ short int time_cnt=0;
 unsigned long uptime=0;
 unsigned long uptime_old=0;
 
+bool AT_HOME=false;
+bool AT_WORK=false;
+
+#define WORK
+
 // NTP Servers:
-static const char ntpServerName[] = "ru.pool.ntp.org";
 //static const char ntpServerName[] = "time.nist.gov";
+static const char* ntpServerName = "ru.pool.ntp.org";
+
 const int timeZone = 3;     // Moscow
 
 WiFiUDP ntpUDP;
-
-//NTPClient timeClient(ntpUDP, ntpServerName, 3600*timeZone, 1000*60);
-NTPClient timeClient(ntpUDP, ntpServerName1, 3600*timeZone, 1000*60);
+#ifdef WORK
+NTPClient timeClient(ntpUDP, ntpServerName_w, 3600*timeZone, 1000*60);
+#else
+NTPClient timeClient(ntpUDP, ntpServerName, 3600*timeZone, 1000*60);
+#endif
 //setTimeOffset(3600*timeZone); //in seconds
 //setUpdateInterval(1000*60); //in milliseconds
 
@@ -87,6 +95,7 @@ void printDigits(int digits);
 void sendNTPpacket(IPAddress &address);
 time_t prevDisplay = 0; // when the digital clock was displayed
 //*/
+
 //////////////////////////////////////////////////////////////////
 void setup() {
   Serial.begin(115200);
@@ -99,15 +108,35 @@ void setup() {
   //digitalWrite(LED_PIN, HIGH);
   
   wifi_scan ();
-  Serial.print("Connecting to "); // Connect to WiFi network
-  #ifndef PASS_H
-    const char* ssid = "***";
-    const char* password = "***";
+  const char* ssid = "***";
+  const char* password = "***";
+/*
+  #ifdef PASS_H
+    bool AT_HOME=false;
+    bool AT_WORK=false;
+    if(AT_WORK){
+      ssid=ssid_w;
+      password=password_w;
+      //ntpServerName=ntpServerName_w;
+    }
+    if (AT_HOME){
+      ssid=ssid_h;
+      password=password_h;
+      //ntpServerName=ntpServerName_h;
+    }
   #endif
+  */
+  Serial.print("Connecting to "); // Connect to WiFi network
   //Serial.println(ssid);
-  Serial.println(ssid1);
   //WiFi.begin(ssid, password);
-  WiFi.begin(ssid1, password1);
+#ifdef WORK
+  Serial.println(ssid_w);
+  WiFi.begin(ssid_w, password_w);
+#else
+  Serial.println(ssid_h);
+  WiFi.begin(ssid_h, password_h);
+#endif
+  
   
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -290,7 +319,7 @@ void printDigits(int digits)
 }
 
 /*-------- NTP code ----------*/
-
+/*
 const int NTP_PACKET_SIZE_ = 48; // NTP time is in the first 48 bytes of message
 byte packetBuffer[NTP_PACKET_SIZE_]; //buffer to hold incoming & outgoing packets
 
@@ -301,8 +330,13 @@ time_t getNtpTime()
   while (Udp.parsePacket() > 0) ; // discard any previously received packets
   Serial.println("Transmit NTP Request");
   // get a random server from the pool
-  WiFi.hostByName(ntpServerName1, ntpServerIP);
-  Serial.print(ntpServerName1);
+#ifdef WORK
+  WiFi.hostByName(ntpServerName_w, ntpServerIP);
+  Serial.print(ntpServerName_w);
+#else
+  WiFi.hostByName(ntpServerName, ntpServerIP);
+  Serial.print(ntpServerName);
+#endif
   Serial.print(": ");
   Serial.println(ntpServerIP);
   sendNTPpacket(ntpServerIP);
@@ -324,6 +358,68 @@ time_t getNtpTime()
   Serial.println("No NTP Response :-(");
   return 0; // return 0 if unable to get the time
 }
+*/
+
+
+const int NTP_PACKET_SIZE_ = 48; // NTP time is in the first 48 bytes of message
+byte packetBuffer[NTP_PACKET_SIZE_]; //buffer to hold incoming & outgoing packets
+
+time_t getNtpTime()
+{
+  IPAddress ntpServerIP; // NTP server's ip address
+
+  while (Udp.parsePacket() > 0) ; // discard any previously received packets
+  Serial.println("Transmit NTP Request");
+  // get a random server from the pool
+#ifdef WORK
+  WiFi.hostByName(ntpServerName_w, ntpServerIP);
+  Serial.print(ntpServerName_w);
+#else
+  WiFi.hostByName(ntpServerName, ntpServerIP);
+  Serial.print(ntpServerName);
+#endif
+  Serial.print(": ");
+  Serial.println(ntpServerIP);
+  sendNTPpacket(ntpServerIP);
+
+
+  // Wait till data is there or timeout...
+  byte timeout = 0;
+  int cb = 0;
+  do {
+    delay ( 10 );
+    cb = Udp.parsePacket();
+    if (timeout > 100){
+      Serial.println("No NTP Response :-(");
+      return 0; // return 0 if unable to get the time
+    }
+    timeout++;
+  } while (cb == 0);
+
+Serial.println("Receive NTP Response");
+      Udp.read(packetBuffer, NTP_PACKET_SIZE_);  // read packet into the buffer
+      unsigned long secsSince1900;
+      // convert four bytes starting at location 40 to a long integer
+      secsSince1900 =  (unsigned long)packetBuffer[40] << 24;
+      secsSince1900 |= (unsigned long)packetBuffer[41] << 16;
+      secsSince1900 |= (unsigned long)packetBuffer[42] << 8;
+      secsSince1900 |= (unsigned long)packetBuffer[43];
+      return secsSince1900 - 2208988800UL + timeZone * SECS_PER_HOUR;
+
+/*
+  uint32_t beginWait = millis();
+  while (millis() - beginWait < 1500) {
+    int size = Udp.parsePacket();
+    if (size >= NTP_PACKET_SIZE_) {
+      
+    }
+  }
+  */
+}
+
+
+
+
 
 // send an NTP request to the time server at the given address
 void sendNTPpacket(IPAddress &address)
@@ -343,7 +439,9 @@ void sendNTPpacket(IPAddress &address)
   packetBuffer[15] = 52;
   // all NTP fields have been given values, now
   // you can send a packet requesting a timestamp:
-  Udp.beginPacket(address, 123); //NTP requests are to port 123
+  //Udp.beginPacket(address, 123); //NTP requests are to port 123
+Serial.println(ntpServerName_w);
+  Udp.beginPacket(ntpServerName_w, 123);
   Udp.write(packetBuffer, NTP_PACKET_SIZE_);
   Udp.endPacket();
 }

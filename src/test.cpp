@@ -1,3 +1,6 @@
+#ifdef TEST
+
+//*
 time_t getNtpTime()
 {
   IPAddress ntpServerIP; // NTP server's ip address
@@ -64,3 +67,7 @@ bool NTPClient::forceUpdate() {
 
   return true;
 }
+
+//*/
+
+#endif
