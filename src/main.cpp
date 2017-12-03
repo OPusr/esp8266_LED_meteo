@@ -11,7 +11,7 @@ http://arduino.ru/Reference/Serial/Println
 #include <PubSubClient.h>
 #include <ESP8266HTTPClient.h>
 //#define DEBUG_NTPClient
-#include <NTPClient.h>
+////#include <NTPClient.h>
 #include <WiFiUdp.h>
 #include <math.h>
 
@@ -44,7 +44,7 @@ unsigned long uptime_old=0;
 bool AT_HOME=false;
 bool AT_WORK=false;
 
-#define WORK
+//#define WORK
 
 // NTP Servers:
 //static const char ntpServerName[] = "time.nist.gov";
@@ -52,19 +52,31 @@ static const char* ntpServerName = "ru.pool.ntp.org";
 
 const int timeZone = 3;     // Moscow
 
-WiFiUDP ntpUDP;
+////WiFiUDP ntpUDP;
 #ifdef WORK
 NTPClient timeClient(ntpUDP, ntpServerName_w, 3600*timeZone, 1000*60);
 #else
-NTPClient timeClient(ntpUDP, ntpServerName, 3600*timeZone, 1000*60);
+////NTPClient timeClient(ntpUDP, ntpServerName, 3600*timeZone, 1000*60);
 #endif
 //setTimeOffset(3600*timeZone); //in seconds
 //setUpdateInterval(1000*60); //in milliseconds
 
 bool ledState;
 void blink() {
-  digitalWrite(LED_PIN, ledState);
+  //digitalWrite(LED_PIN, ledState);
   ledState = !ledState;
+
+  //digitalWrite(LED_PIN, digitalRead(LED_PIN) ^ 1);
+  //digitalWrite(LED_PIN, !digitalRead(LED_PIN));
+
+  if (ledState==0){
+    digitalWrite(LED_PIN, LOW);
+    analogWrite(LED_PIN, PWMRANGE-0);
+  }
+  else{
+    digitalWrite(LED_PIN, HIGH);
+    analogWrite(LED_PIN, PWMRANGE-23);
+  }
 }
 
 bool loop_run = false;
@@ -79,9 +91,6 @@ void timer_f(void){
   time_new=micros();
 
   blink();
-
-  //digitalWrite(LED_PIN, digitalRead(LED_PIN) ^ 1);
-  //digitalWrite(LED_PIN, !digitalRead(LED_PIN));
 }
 
 
@@ -144,9 +153,12 @@ void setup() {
   }
   wifi_info();
 
-  timeClient.begin();
-  timeClient.forceUpdate();
-
+  ////timeClient.begin();
+  ////timeClient.forceUpdate();
+Udp.begin(localPort);
+Serial.print("Local port: ");  //  "Локальный порт: "
+Serial.println(Udp.localPort());
+Serial.println("waiting for sync");  //  "ждем синхронизации"
   //*
   setSyncProvider(getNtpTime);
   setSyncInterval(45);
@@ -247,13 +259,13 @@ void loop() {
       if (uptime%10==0){
         Serial.print("NTP time: ");
         //Serial.println(timeClient.getEpochTime());
-        Serial.println(timeClient.getFormattedTime());
+        ////Serial.println(timeClient.getFormattedTime());
         now();
       }
 
       if (uptime%30==0){
         Serial.println("NTP time update");
-        timeClient.forceUpdate();
+        ////timeClient.forceUpdate();
       }
 
       uptime++;
@@ -261,7 +273,7 @@ void loop() {
     else{
       time_cnt++;
 
-      timeClient.update();    //get time from NTP server
+      ////timeClient.update();    //get time from NTP server
       //timeClient.forceUpdate();  
       //Serial.println(timeClient.getFormattedTime());
       //Serial.println(timeClient.getEpochTime());
@@ -270,13 +282,6 @@ void loop() {
       Serial.println(timeClient.getHours());
       Serial.println(timeClient.getMinutes());
       Serial.println(timeClient.getSeconds());//*/
-
-      //digitalWrite(LED_PIN, LOW);
-      //analogWrite(LED_PIN, PWMRANGE-0);
-      //delay(2500);
-      //digitalWrite(LED_PIN, HIGH);
-      //analogWrite(LED_PIN, PWMRANGE-23);
-      //delay(2500);
     }
 
   }
